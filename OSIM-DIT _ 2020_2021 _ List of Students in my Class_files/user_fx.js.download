@@ -1,0 +1,630 @@
+/**
+ * Timeago is a jQuery plugin that makes it easy to support automatically
+ * updating fuzzy timestamps (e.g. "4 minutes ago" or "about 1 day ago").
+ *
+ * @name timeago
+ * @version 1.4.3
+ * @requires jQuery v1.2.3+
+ * @author Ryan McGeary
+ * @license MIT License - http://www.opensource.org/licenses/mit-license.php
+ *
+ * For usage and examples, visit:
+ * http://timeago.yarp.com/
+ *
+ * Copyright (c) 2008-2015, Ryan McGeary (ryan -[at]- mcgeary [*dot*] org)
+ */
+
+(function (factory) {
+    if (typeof define === 'function' && define.amd) {
+        // AMD. Register as an anonymous module.
+        define(['jquery'], factory);
+    } else if (typeof module === 'object' && typeof module.exports === 'object') {
+        factory(require('jquery'));
+    } else {
+        // Browser globals
+        factory(jQuery);
+    }
+}(function ($) {
+    $.timeago = function(timestamp) {
+        if (timestamp instanceof Date) {
+            return inWords(timestamp);
+        } else if (typeof timestamp === "string") {
+            return inWords($.timeago.parse(timestamp));
+        } else if (typeof timestamp === "number") {
+            return inWords(new Date(timestamp));
+        } else {
+            return inWords($.timeago.datetime(timestamp));
+        }
+    };
+    var $t = $.timeago;
+
+    $.extend($.timeago, {
+        settings: {
+            refreshMillis: 60000,
+            allowPast: true,
+            allowFuture: false,
+            localeTitle: false,
+            cutoff: 0,
+            autoDispose: true,
+            strings: {
+                prefixAgo: null,
+                prefixFromNow: null,
+                suffixAgo: "ago",
+                suffixFromNow: "from now",
+                inPast: 'any moment now',
+                seconds: "less than a minute",
+                minute: "about a minute",
+                minutes: "%d minutes",
+                hour: "about an hour",
+                hours: "about %d hours",
+                day: "a day",
+                days: "%d days",
+                month: "about a month",
+                months: "%d months",
+                year: "about a year",
+                years: "%d years",
+                wordSeparator: " ",
+                numbers: []
+            }
+        },
+
+        inWords: function(distanceMillis) {
+            if(!this.settings.allowPast && ! this.settings.allowFuture) {
+                throw 'timeago allowPast and allowFuture settings can not both be set to false.';
+            }
+
+            var $l = this.settings.strings;
+            var prefix = $l.prefixAgo;
+            var suffix = $l.suffixAgo;
+            if (this.settings.allowFuture) {
+                if (distanceMillis < 0) {
+                    prefix = $l.prefixFromNow;
+                    suffix = $l.suffixFromNow;
+                }
+            }
+
+            if(!this.settings.allowPast && distanceMillis >= 0) {
+                return this.settings.strings.inPast;
+            }
+
+            var seconds = Math.abs(distanceMillis) / 1000;
+            var minutes = seconds / 60;
+            var hours = minutes / 60;
+            var days = hours / 24;
+            var years = days / 365;
+
+            function substitute(stringOrFunction, number) {
+                var string = $.isFunction(stringOrFunction) ? stringOrFunction(number, distanceMillis) : stringOrFunction;
+                var value = ($l.numbers && $l.numbers[number]) || number;
+                return string.replace(/%d/i, value);
+            }
+
+            var words = seconds < 45 && substitute($l.seconds, Math.round(seconds)) ||
+                seconds < 90 && substitute($l.minute, 1) ||
+                minutes < 45 && substitute($l.minutes, Math.round(minutes)) ||
+                minutes < 90 && substitute($l.hour, 1) ||
+                hours < 24 && substitute($l.hours, Math.round(hours)) ||
+                hours < 42 && substitute($l.day, 1) ||
+                days < 30 && substitute($l.days, Math.round(days)) ||
+                days < 45 && substitute($l.month, 1) ||
+                days < 365 && substitute($l.months, Math.round(days / 30)) ||
+                years < 1.5 && substitute($l.year, 1) ||
+                substitute($l.years, Math.round(years));
+
+            var separator = $l.wordSeparator || "";
+            if ($l.wordSeparator === undefined) { separator = " "; }
+            return $.trim([prefix, words, suffix].join(separator));
+        },
+
+        parse: function(iso8601) {
+            var s = $.trim(iso8601);
+            s = s.replace(/\.\d+/,""); // remove milliseconds
+            s = s.replace(/-/,"/").replace(/-/,"/");
+            s = s.replace(/T/," ").replace(/Z/," UTC");
+            s = s.replace(/([\+\-]\d\d)\:?(\d\d)/," $1$2"); // -04:00 -> -0400
+            s = s.replace(/([\+\-]\d\d)$/," $100"); // +09 -> +0900
+            return new Date(s);
+        },
+        datetime: function(elem) {
+            var iso8601 = $t.isTime(elem) ? $(elem).attr("datetime") : $(elem).attr("title");
+            return $t.parse(iso8601);
+        },
+        isTime: function(elem) {
+            // jQuery's `is()` doesn't play well with HTML5 in IE
+            return $(elem).get(0).tagName.toLowerCase() === "time"; // $(elem).is("time");
+        }
+    });
+
+    // functions that can be called via $(el).timeago('action')
+    // init is default when no action is given
+    // functions are called with context of a single element
+    var functions = {
+        init: function(){
+            var refresh_el = $.proxy(refresh, this);
+            refresh_el();
+            var $s = $t.settings;
+            if ($s.refreshMillis > 0) {
+                this._timeagoInterval = setInterval(refresh_el, $s.refreshMillis);
+            }
+        },
+        update: function(time){
+            var parsedTime = $t.parse(time);
+            $(this).data('timeago', { datetime: parsedTime });
+            if($t.settings.localeTitle) $(this).attr("title", parsedTime.toLocaleString());
+            refresh.apply(this);
+        },
+        updateFromDOM: function(){
+            $(this).data('timeago', { datetime: $t.parse( $t.isTime(this) ? $(this).attr("datetime") : $(this).attr("title") ) });
+            refresh.apply(this);
+        },
+        dispose: function () {
+            if (this._timeagoInterval) {
+                window.clearInterval(this._timeagoInterval);
+                this._timeagoInterval = null;
+            }
+        }
+    };
+
+    $.fn.timeago = function(action, options) {
+        var fn = action ? functions[action] : functions.init;
+        if(!fn){
+            throw new Error("Unknown function name '"+ action +"' for timeago");
+        }
+        // each over objects here and call the requested function
+        this.each(function(){
+            fn.call(this, options);
+        });
+        return this;
+    };
+
+    function refresh() {
+        var $s = $t.settings;
+
+        //check if it's still visible
+        if($s.autoDispose && !$.contains(document.documentElement,this)){
+            //stop if it has been removed
+            $(this).timeago("dispose");
+            return this;
+        }
+
+        var data = prepareData(this);
+
+        if (!isNaN(data.datetime)) {
+            if ( $s.cutoff == 0 || Math.abs(distance(data.datetime)) < $s.cutoff) {
+                $(this).text(inWords(data.datetime));
+            }
+        }
+        return this;
+    }
+
+    function prepareData(element) {
+        element = $(element);
+        if (!element.data("timeago")) {
+            element.data("timeago", { datetime: $t.datetime(element) });
+            var text = $.trim(element.text());
+            if ($t.settings.localeTitle) {
+                element.attr("title", element.data('timeago').datetime.toLocaleString());
+            } else if (text.length > 0 && !($t.isTime(element) && element.attr("title"))) {
+                element.attr("title", text);
+            }
+        }
+        return element.data("timeago");
+    }
+
+    function inWords(date) {
+        return $t.inWords(distance(date));
+    }
+
+    function distance(date) {
+        return (new Date().getTime() - date.getTime());
+    }
+
+    // fix for IE6 suckage
+    document.createElement("abbr");
+    document.createElement("time");
+}));
+
+
+(function($) {
+    "use strict";
+    $.fn.loginHelper = function(options){
+        var settings = $.extend({
+            username:"Login ID",
+            profileimage:".userinfo img.profile_thumb",
+            hidden:true,
+            token:"",
+            userid:"",
+            checkurl:getBaseUrl() + "login/session_status"
+        },options);
+
+        var show = function(){
+            this.show();
+            this.addClass('is_shown');
+            this.removeClass('is_hidden');
+        }
+
+        var hide = function(){
+            this.hide();
+            this.addClass('is_hidden');
+            this.removeClass('is_shown');
+        };
+
+        var target = this;
+        if(navigator != undefined) {
+            if(navigator.onLine == false){
+                alert_warning('warning', '<span class="message"><i class="fa fa-warning"></i> No Internet Connection. Check Internet Connection Status</span>');
+                this.show();
+            }else{
+                this.hide();
+            }
+            //this.find('.logwindow').children('img').attr("src",jQuery(this.profileimage).attr('src') + "&ra=" + Math.random())
+            //this.find('.logwindow').children('h5').html("Logged In: " + this.username);
+            jQuery(".required-data").change(function () {
+                jQuery(this).removeClass('inputError').siblings('.text-error').remove();
+            });
+        }
+        // console.log(this);
+        return this;
+    }
+})(jQuery)
+
+
+function modalLoading(mode,tget){
+    jQuery("#"+tget).modalmanager(mode ==1?'loading':'removeLoading');
+}
+
+function loginChecker(){
+    //jQuery(".lockscreen").hide();
+    var locks = false;
+    setInterval(function(){
+        if(typeof userdata !== 'undefined'){
+           locks = jQuery(".lockscreen").loginHelper({
+                username:userdata.login_id,
+                token:csrf_hash
+            });
+            //locks.hide();
+        }else{
+            var $user = false;
+        }
+    },600000);
+
+        jQuery("#lockform").submit(function () {
+            var valid = validate_form(this);
+            var form = this;
+            if (valid) {
+                var formdata = jQuery(this).serialize();
+                var action = jQuery(this).attr('action');
+                jQuery('body').modalmanager('loading');
+                jQuery.post(action, formdata, function (rdata, xhr) {
+                    jQuery('body').modalmanager('removeLoading');
+                    if (xhr == 'success') {
+                        if (rdata.errors == true) {
+                            jQuery.growl.error({title: 'Login Failed', message: rdata.message});
+
+                            if (rdata.error == 1) {
+                                populate_form_errors(form, rdata.fields);
+                            }
+                        } else {
+                            jQuery.growl.notice({title: 'Login Success', message: rdata.data});
+                             csrf_hash = rdata.form_token;
+                            locks.hide();
+                            //alert_warning('info',rdata.data + "<br>\n\rPlease Close and Open Again this Section!");
+                        }
+                    } else {
+                        jQuery.growl.error({
+                            title: 'Network Timeout!',
+                            message: "We are experiencing Connection problems to the server!! Please Retry Again!!"
+                        });
+                    }
+                }).fail(function(){
+                         jQuery.alerts.dialogClass = 'alert-warning';
+                            jAlert('<span class="message"><i class="fa fa-warning></i>&nbsp;&nbsp;&nbsp;Failed to Get Appropriate Response from Server!! </span>', 'Alert Info', function(){
+                                //jQuery(modal).modal('hide')
+                                jQuery.alerts.dialogClass = null; // reset to default
+                            })});;
+            }
+            return false;
+        });
+}
+
+Number.prototype.format = function(n, x) {
+    var re = '\\d(?=(\\d{' + (x || 3) + '})+' + (n > 0 ? '\\.' : '$') + ')';
+    return this.toFixed(Math.max(0, ~~n)).replace(new RegExp(re, 'g'), '$&,');
+};
+
+function activate_action_buttons(){
+
+    // Handle save action of the form
+  //  jQuery.uniform.update();
+    jQuery('input:checkbox, input:radio, .uniform-file').each(function(i,e){
+        if(jQuery(this).hasClass('toggleinput') == false){
+          jQuery(this).uniform();
+        }
+
+    });
+
+}
+
+function update_container_element(rdata,targetCont,targetModal){
+     if(rdata.errors == true || rdata.error ==true){
+         alert_warning('danger',rdata.message);
+     }else{
+         alert_warning('info',rdata.message);
+       //  jQuery('form').reset();
+     }
+
+    jQuery('body').modalmanager('removeLoading');
+}
+
+function validate_form(form){
+    var noerror = true;
+    jQuery(form).find('.required-data').each(function(){
+           var value =  jQuery(this).val();
+            if(value == "" || value == '--'){
+                jQuery(this).addClass('inputError') ;
+                jQuery(this).siblings('.help-inline').remove();
+                jQuery(this).after('<span class="help-inline text-error" style="color:#b94a48">Must not be empty</span>')
+                noerror  = false
+            }
+    }
+
+    );
+
+    jQuery(form).find('.required-data.multiple-select').each(function(){
+        var options = jQuery(this).find('option');
+        if(options.length == 0 || jQuery(this).val() == '--'){
+            jQuery(this).addClass('inputError') ;
+            jQuery(this).siblings('.help-inline').remove();
+            jQuery(this).after('<span class="help-inline text-error" style="color:#b94a48">Must not be empty</span>')
+
+            noerror  = false
+        }
+    })
+
+
+    return noerror;
+}
+
+function populate_form_errors(form,data){
+    jQuery.each(data,function(id,element){
+        jQuery(form).find("input[name='" + id + "']").each(function(){
+            if(jQuery(this).attr('type') == 'radio' || jQuery(this).attr('type') == 'checkbox'){
+                  jQuery(this).parents('label,.radio,.checkbox').siblings('.form-error').
+                  html('<span class="help-inline text-error" style="color:#b94a48">' + element +'</span>')
+              }else{
+                 jQuery(this).addClass('inputError') ;
+            jQuery(this).siblings('.help-inline').remove();
+            jQuery(this).after('<span class="help-inline text-error" style="color:#b94a48">' + element +'</span>')
+              }
+
+        });
+
+        jQuery(form).find("select[name='" + id + "']").each(function(){
+            jQuery(this).addClass('inputError') ;
+            jQuery(this).siblings('.help-inline').remove();
+            jQuery(this).after('<span class="help-inline text-error" style="color:#b94a48">' + element +'</span>')
+
+        });
+
+        jQuery(form).find("textarea[name='" + id + "']").each(function(){
+            jQuery(this).addClass('inputError') ;
+            jQuery(this).siblings('.help-inline').remove();
+            jQuery(this).after('<span class="help-inline text-error" style="color:#b94a48">' + element +'</span>')
+
+        })
+    });
+}
+
+function handle_incoming_add(rdata,dmpTo,modal,message){
+      jQuery(dmpTo).prepend(rdata);
+        jQuery.alerts.dialogClass = 'alert-info';
+        jAlert('<span class="message"><span class="btn btn-info btn-circle"><i class="fa fa-info-circle"></i></span>&nbsp;&nbsp;&nbsp;&nbsp;'+message+'</span>', 'Activity Information', function(){
+        //jQuery(modal).modal('hide')
+        jQuery.alerts.dialogClass = null; // reset to default
+    });
+
+        icrement_item_count(dmpTo,'+')
+    jQuery('input:checkbox, input:radio, .uniform-file').each(function(i,e){
+        if(jQuery(this).hasClass('toggleinput') == false){
+            jQuery(this).uniform();
+        }
+
+    });
+
+    jQuery.uniform.update();
+    jQuery('body').modalmanager('removeLoading');
+}
+
+function remove_element(targetCont,targetEl,msg){
+    jQuery(targetCont).find(targetEl).hide().delay(1000).remove();
+    jQuery.alerts.dialogClass = 'alert-danger';
+    jAlert('<span class="danger"><span class="btn btn-danger btn-circle"><i class="fa fa-info"></i></span>&nbsp;Successfully Removed</span>', 'Item Removal Activity Information', function(){
+        jQuery.alerts.dialogClass = null; // reset to default
+    });
+
+
+        icrement_item_count(targetCont,'-')
+
+
+}
+    // Increment the item count for the tables or list of items in the dom
+function icrement_item_count(targetCont,type){
+    var itC = jQuery(targetCont).attr('id') + '-count';
+    var items = jQuery(targetCont).children('.item-row');
+    var curVal = items.length;
+    jQuery("." + itC).text(curVal); // Update the dom with new items list
+}
+
+function alert_warning(type,message){
+    switch(type){
+        case 'warning':
+             var title = "Warning Message"
+            var msgHead = "Message Warning"
+            itype = 'warning-sign';
+            break;
+        case 'success':
+            var title = "Success Message"
+            var msgHead = "Success Status Info"
+            itype = 'info-sign';
+            break;
+        case 'danger':
+            var title = "Danger Message"
+            var msgHead = "Attention !"
+            itype = 'warning-sign';
+            break;
+        case 'info':
+            var title = "Information Message"
+            var msgHead = "Status Information! "
+            itype = 'info-sign';
+            break;
+    }
+
+    jQuery.alerts.dialogClass = 'alert-'+type;
+    jAlert('<span class="danger"><span class="btn btn-' + itype +  ' btn-circle"><i class="glyphicon glyphicon-'+itype + '"></i></span>&nbsp'+ message + '</span>', msgHead, function(){
+        jQuery.alerts.dialogClass = null; // reset to default
+    });
+    jQuery('body').modalmanager('removeLoading');
+
+}
+
+function updateModaltitle(type,title,button){
+   // fix_modal()
+   // alert(title);
+   // alert(type)
+
+// find open modal first
+    var $openmodal = jQuery('.modal[aria-hidden=false]');
+    activate_action_buttons();
+    if(type == 1){
+        jQuery('#add-item-data-label').find('#modal-item-data-label').html(title);
+        jQuery('#add-item-act-button').find('#modal-item-act-button').html(button);
+
+    }else if(type == 2){
+        jQuery('#edit-item-data-label').find('#modal-item-data-label').html(title);
+        jQuery('#edit-item-act-button').find('#modal-item-act-button').html(button);
+
+    }else{
+            jQuery(type).find('#modal-item-data-label').html(title);
+            // jQuery('#view-item-data-label').html(title) ;
+            jQuery(type).find('#modal-item-act-button').html(button);
+
+    }
+
+   // update_table_check();
+
+}
+
+function fix_modal(){
+     jQuery(".modal").each(function(){
+       var elm = jQuery(this);
+         var windowheight = jQuery('body').height();
+         alert(windowheight)
+        jQuery(this).css(
+            'margin-top', 0 - (elm.height()/2 )
+        )
+
+         //alert(height)
+     });
+}
+
+function activate_items(){
+
+    jQuery('input:checkbox, input:radio, .uniform-file').each(function(i,e){
+       // ..if(jQuery(this).hasClass('toggleinput') == false){
+            jQuery(this).uniform();
+       // }
+
+    });
+    jQuery('[data-toggle="popover"]').popover({'placement': 'left'});
+    jQuery('[data-toggle="tooltip"]').tooltip({'placement': 'top'});
+    jQuery('body').removeClass('modal-open')
+}
+
+/**
+ * @param $formdata  serialized form data to be sent
+ * @param $targetcontainer  row source from which the data is to be reset
+ * @param $type  content type that is to be dumped to server
+ * @param $url the url link for which the data is to be dumped to
+ */
+
+function send_admission_info($formdata,$targetcontainer,$type,$url,$targetform){
+    if(validate_form($targetform)){
+        jQuery(".stdform2").modalmanager('loading')
+      jQuery.ajax({
+          type: 'POST',
+          url: $url,
+          data: $formdata,
+          success: function(rdata,xhr){
+              jQuery(".stdform2").modalmanager('removeLoading')
+if(rdata.error == true){
+
+    jQuery.growl.error({title:rdata['title'],message:rdata['message']})
+    populate_form_errors($targetform);
+}else{
+    jQuery.growl.notice({title:"Form Status",message:rdata['message']})
+}
+          } ,
+          fail:function(){
+            jQuery.growl.error({title:"Invalid Response from Server",message:"Received an Invalid Response from Server!"})
+          },
+          async: true
+
+      });}else{
+        return false;
+    }
+
+    return true;
+
+}
+
+function update_items_table($item){
+
+    console.log($item) ;
+
+    var target = jQuery(jQuery($item).attr('data-target'))[0];
+
+    //jQuery(".chosen-select").trigger("chosen:updated");
+}
+
+function shrink_main_menu(){
+    return;
+   var width = jQuery(".leftpanel").width();
+
+    if(width == 240){
+       jQuery(".rightpanel").css('margin-left',70);
+       jQuery(".leftpanel").css("width",70).addClass('collapsed-menu').find('ul li.dropdown.active').find('li.dropdown > ul').addClass('menu-collapsed');;
+        jQuery(".menu-title").hide();
+
+        return 2;
+    }else{
+        jQuery(".rightpanel").css('margin-left',240);
+        jQuery(".leftpanel").css("width",240).removeClass('collapsed-menu').find('ul  li.dropdown.active').find('li.dropdown > ul').addClass('menu-collapsed');
+        jQuery(".menu-title").show();
+        return 1;
+    }
+}
+
+function update_table_check($table){
+    jQuery($table).on('click','.checkall',function(){
+        var parentTable = jQuery(this).parents('table');
+        var ch = parentTable.find('tbody input[type=checkbox],.checkall-li');
+        if(jQuery(this).is(':checked')) {
+            //check all rows in table
+            ch.each(function(){
+                jQuery(this).attr('checked',true);
+                jQuery(this).parent().addClass('checked');	//used for the custom checkbox style
+                jQuery(this).parents('tr').addClass('selected'); // to highlight row as selected
+            });
+        } else {
+            //uncheck all rows in table
+            ch.each(function(){
+                jQuery(this).attr('checked',false);
+                jQuery(this).parent().removeClass('checked');	//used for the custom checkbox style
+                jQuery(this).parents('tr').removeClass('selected');
+            });
+        }
+    });
+}
+
+
+

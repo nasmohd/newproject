@@ -1,0 +1,701 @@
+jQuery.noConflict();
+
+jQuery(document).ready(function(){
+
+    jQuery('.taglist .close').click(function(){
+        jQuery(this).parent().remove();
+        return false;
+    });
+
+    /*jQuery("#CalenderDatePicker").datepicker({
+            showWeek: true,
+            firstDay: 1 });
+*/
+
+    jQuery("body").on("click",".class-list-action-btn",function(e){
+        e.preventDefault();
+        //alert_warning("warning",'Feature In progresss')
+        var trlbl = jQuery(this).attr('data-label');
+        var actionurl = jQuery(this).attr('href');
+        jQuery('body').modalmanager("loading");
+        //alert(actionurl)
+        var currrow = jQuery(this).parents('tr');
+
+        jQuery.post(actionurl,{token:csrf_hash},function(rdata,xhr){
+
+            jQuery("body").modalmanager('removeLoading')
+            if(rdata.error == true){
+                jQuery.growl.error({title:"Action Failed",message:rdata.message});
+            }else{
+                jQuery(currrow).removeClass();
+                jQuery.growl.notice({title:"Action Success",message:rdata.message}) ;
+                jQuery(currrow).addClass(trlbl);
+            }
+            window.form_callback();
+        }) ;
+        return false;
+    }).on("click",".set-class_students",function(e){
+        var targettable = jQuery("table.student-list-table") ;
+        e.preventDefault();
+        targettable.modalmanager('loading')
+        jQuery.post(jQuery(this).attr('href'),jQuery("#filter-table-data").serialize(),function(rdata){
+            targettable.modalmanager('removeLoading')
+            jQuery("#add-item-data").modal('show');
+            jQuery("#add-item-data").find('.modal-body').html(rdata);
+            targettable.modalmanager('removeLoading')
+        }).fail(function(){
+            targettable.modalmanager('removeLoading');
+            jQuery.growl.error({title:"Invalid Response From Server!",message:"Received an invalid response from Server!"})
+        });
+    })
+        .on("click",'.tablelist-control-btn',function(e){
+        e.preventDefault();
+        var list = new Object();
+        var url = jQuery(this).attr('href');
+        var $table = jQuery(this).data('targettable');
+        var $title = jQuery(this).attr('title');
+
+        var targettable = jQuery($table) ;
+        targettable.find('.checkli:checked').each(function(i,e){
+            if(list['selection[]'] == undefined){
+                list['selection[]'] = new Array();
+            }
+            list['selection[]'].push(jQuery(this).val());
+        });
+
+        if(targettable.find('.checkli:checked').length > 0){
+            jConfirm('Are you Sure you Want To Apply To Proceed? ' + list['selection[]'].length + " Selected Items", $title, function(r) {
+                if(r == true) {
+                    targettable.modalmanager('loading');
+                    jQuery.post(url,list,function(rdata){
+                        targettable.modalmanager('removeLoading');
+
+                        if(rdata.error == true){
+                            jQuery.growl.error({title:"Error Information ",message:rdata.message});
+                        }else{
+                            targettable.DataTable().ajax.reload();
+                            jQuery.growl.notice({title:"Notice Information ",message:rdata.message});
+                        }
+                    }).fail(function(){
+                        targettable.modalmanager('removeLoading');
+                        jQuery.growl.error({title:"Invalid Response From Server!",message:"Received an invalid response from Server!"})
+                    })
+                }
+            }) ;
+
+        }else{
+            jQuery.growl.warning({title:"No Student Selected",message:"Select At least One Row for the effect to apply"})
+        }
+        return false;
+    })
+        .on("click",".classlist-control-btn",function(e) {
+        e.preventDefault();
+        var list = new Object();
+        var url = jQuery(this).attr('href');
+        var $stlist = "";
+        var targettable = jQuery("table.student-list-table") ;
+        targettable.find('.checkitem:checked').each(function(i,e){
+            if(list['streams['+jQuery(e).attr('data-stream')+']'] == undefined){
+                list['streams['+jQuery(e).attr('data-stream')+']'] = new Array();
+            }
+            $stlist += jQuery(this).parents('tr').find('td:eq(2)').html() + "; ";
+            list['streams['+jQuery(e).attr('data-stream')+']'].push(jQuery(this).val());
+        });
+        var title = jQuery(this).text();
+        if(targettable.find('.checkitem:checked').length > 0){
+            jConfirm('Are you Sure you Want To Apply <span class="badge">'+title+'</span>  Action to  ' +  $stlist + "</span>", title, function(r) {
+                if(r == true) {
+                    targettable.modalmanager('loading');
+                    jQuery.post(url,list,function(rdata){
+                        targettable.modalmanager('removeLoading');
+
+                        if(rdata.error == true){
+                            jQuery.growl.error({title:"Error Information ",message:rdata.message});
+                        }else{
+                            targettable.DataTable().ajax.reload();
+                            jQuery.growl.notice({title:"Notice Information ",message:rdata.message});
+                        }
+                    }).fail(function(){
+                        targettable.modalmanager('removeLoading');
+                        jQuery.growl.error({title:"Invalid Response From Server!",message:"Received an invalid response from Server!"})
+                    })
+                }
+            }) ;
+
+
+
+        }else{
+            jQuery.growl.warning({title:"No Student Selected",message:"Select atleast one student for the effect to apply"})
+        }
+        return false;
+    }).on('change','select[name=target_group]',function(){
+
+        });
+
+    jQuery("#acYearPick").data("placeholder","Academic Year ..").chosen();
+
+    // dropdown in leftmenu
+    jQuery('.leftmenu .dropdown > a').click(function(){
+        if(!jQuery(this).next().is(':visible'))
+            jQuery(this).next().slideDown('fast');
+        else
+            jQuery(this).next().slideUp('fast');
+        return false;
+    });
+
+
+
+
+    if(jQuery.uniform)
+        jQuery('input:checkbox, input:radio, .uniform-file').each(function(i,e){
+            if(jQuery(this).hasClass('toggleinput') == false){
+                jQuery(this).uniform();
+            }
+
+        });
+
+    if(jQuery('.widgettitle .close').length > 0) {
+        jQuery('.widgettitle .close').click(function(){
+            jQuery(this).parents('.widgetbox').fadeOut(function(){
+                jQuery(this).remove();
+            });
+        });
+    }
+     // SlimScroll Div
+    jQuery(".ul_items-list").slimScroll( {
+        height: '400px',width:'100%'
+});
+
+
+
+    // Show or hide menu on this action
+    jQuery('.topbar .barmenu').click(function() {
+        var lwidth = '200px';
+        if(jQuery(window).width() < 340) {
+            lwidth = '200px';
+        }
+
+        if(!jQuery(this).hasClass('open')) {
+            jQuery('.rightpanel').css({marginLeft: lwidth},'fast');
+            jQuery(' .leftpanel').css({marginLeft: 0},'fast');
+            jQuery(this).addClass('open');
+            jQuery('body').addClass('showLeftMenu');
+        } else {
+            jQuery('.rightpanel').css({marginLeft: 0},'fast');
+            jQuery('.leftpanel').css({marginLeft: '-'+lwidth},'fast');
+            jQuery(this).removeClass('open');
+            jQuery('body').removeClass('showLeftMenu');
+        }
+    });
+
+    jQuery('.topbar .chatmenu').click(function(){
+        if(!jQuery('.onlineuserpanel').is(':visible')) {
+            jQuery('.onlineuserpanel,#chatwindows').show();
+            jQuery('.topbar .chatmenu').css({right: '210px'});
+        } else {
+            jQuery('.onlineuserpanel, #chatwindows').hide();
+            jQuery('.topbar .chatmenu').css({right: '10px'});
+        }
+    });
+
+
+    // dropdown menu for profile image
+    jQuery('.userloggedinfo img').click(function(){
+        if(jQuery(window).width() < 720) {
+            var dm = jQuery('.userloggedinfo .userinfo');
+            if(dm.is(':visible')) {
+                dm.hide();
+            } else {
+                dm.show();
+            }
+        }
+    });
+
+    // Instantiate tooltips
+
+   jQuery('[data-toggle="tooltip"]').tooltip({'placement': 'top'});
+
+    // expand/collapse boxes
+    if(jQuery('.minimize').length > 0) {
+
+        jQuery('.minimize').click(function(){
+            if(!jQuery(this).hasClass('collapsed')) {
+                jQuery(this).addClass('collapsed');
+                jQuery(this).html("&#43;");
+                jQuery(this).parents('.widgetbox')
+                    .css({marginBottom: '20px'})
+                    .find('.widgetcontent')
+                    .hide();
+            } else {
+                jQuery(this).removeClass('collapsed');
+                jQuery(this).html("&#8211;");
+                jQuery(this).parents('.widgetbox')
+                    .css({marginBottom: '0'})
+                    .find('.widgetcontent')
+                    .show();
+            }
+            return false;
+        });
+
+    }
+
+    // fixed right panel
+    var winSize = jQuery(window).height() - 90;
+    if(jQuery('.rightpanel').height() < winSize) {
+          jQuery('.rightpanel').height(winSize);
+    }
+
+    jQuery('.restore-item-btn').live('click',function(e){
+        e.preventDefault();
+        var table = jQuery(this).attr('data-reloadTable');
+        var tg = this;
+        var title = jQuery(this).attr('title')
+
+        jConfirm('Restore ' + title,"Restore Module To Class",  function(r){
+            if(r == true) {
+                jQuery.post(jQuery(tg).attr('href'), {token: csrf_hash}, function (rdata) {
+                    if (rdata.error == true) {
+                        jQuery.growl.error({title: "Action Failed", message: rdata.message})
+                    }else{
+                        jQuery.growl.notice({title: "Action Success", message: rdata.message});
+                        if(table != undefined){
+                            jQuery(table).DataTable().ajax.reload();
+                        }
+                    }
+                }, 'json').fail(function () {
+                    jQuery.growl.notice({
+                        title: "Action Success",
+                        message: "Received an Invalid Response from Server"
+                    })
+                })
+            }
+        });
+    });
+
+    jQuery(".delete-item-btn,.remove-item-btn").live('click',function(e){
+        e.preventDefault();
+        var acturl = jQuery(this).attr('data-url');
+        if(acturl == undefined){
+            acturl = jQuery(this).attr('href');
+        }
+        var reloaddata = jQuery(this).attr('data-reload');
+        var tdiv = jQuery(this).attr("data-targetdiv");
+
+        var reloadTable = jQuery(this).attr('data-reloadTable');
+
+        var el = this;
+        var title = jQuery(this).attr('title')
+        jConfirm('Are you Sure you Want to delete this: <span class="badge badge-danger"> ' +  title + "</span>", 'Confirmation Dialog', function(r) {
+            if(r == true) {
+                jQuery('body').modalmanager('loading')
+                jQuery.post(acturl,{token:csrf_hash}).done(function (rdata) {
+                    jQuery('body').modalmanager('removeLoading')
+                    if (rdata.error == true) {
+                        alert_warning('warning', rdata.message);
+                    } else {
+                        jQuery(el).parents('tr').remove();
+                        alert_warning('info', rdata.message);
+                    }
+                    if(reloaddata != undefined){
+                        jQuery(tdiv).load(reloaddata);
+                    }
+
+                    if(reloadTable != undefined){
+                        jQuery(reloadTable).DataTable().ajax.reload();
+                    }
+                    window.form_callback();
+                }).fail(function () {
+                    alert_warning('warning', "Failed to Delete Item! An error Occurred! Refresh Page")
+                });
+            }
+        }) ;
+
+    });
+
+
+    // check all checkboxes in table
+    jQuery('body').bind('show.bs.modal','.modal',function(e){
+       // jQuery(this).find('.modal-body').html("<div class='alert alert-warning'><i class='fa fa-cog fa-spin'></i> &nbsp;&nbsp; Loading Contents!! Pls Wait!!</div>")
+        jQuery('body').modalmanager('loading');
+    }).bind('loaded.bs.modal','.modal',function(e){
+        jQuery('body').modalmanager('removeLoading');
+    }).bind('hide.bs.modal','.modal',function(){
+        jQuery(this).children('.modal-body').html(" ");
+    }).on("click",'.approve-item-btn',function(e){
+        e.preventDefault();
+        var $table = jQuery(this).attr('data-table');
+        $table = $table===undefined?jQuery(this).data('targettable'):$table;
+        var $url = jQuery(this).attr('href');
+        $url = $url===undefined?jQuery(this).data('url'):$url;
+        var $checked = jQuery($table).find('input[type=checkbox]:checked').serialize();
+        if($table !== undefined) {
+            if (jQuery($table).find('input[type=checkbox]:checked').length === 0) {
+                jQuery.growl.error({title: "Selection Error ", message: "Please select At least one Item"});
+                return false;
+            }
+        }
+        jConfirm('Proceed with Selected Action?', 'Confirmation Dialog', function(r) {
+            if(r === true){
+                jQuery('body').modalmanager('loading');
+                jQuery.post($url,$checked).done(function(rdata){
+                    jQuery('body').modalmanager('removeLoading');
+                    window.form_callback();
+
+                    if(rdata.error === true){
+                       // alert_warning('warning',rdata.message);
+                        jQuery.growl.error({title:"Error Message",message:rdata.message});
+                    }else{
+                        jQuery.growl.notice({title:"Success Message",message:rdata.message});
+
+                    }
+                }).fail(function(){
+                    jQuery('body').modalmanager('removeLoading');
+                    jQuery.growl.error({title:"Action Failed",message:"Action failed due to Invalid Response"})
+                });
+            }else{
+                proceed_delete = false;
+            }
+            //jAlert('Confirmed: ' + r, 'Confirmation Results');
+        });
+
+    }).on('click','.checkall',function(){
+        var parentTable = jQuery(this).parents('table');
+        var ch = parentTable.find('tbody input[type=checkbox],.checkall-li');
+        var targetHold = jQuery(jQuery(parentTable).attr('data-targetcheck'))[0];
+        if(jQuery(this).is(':checked')) {
+            //check all rows in table
+            ch.each(function(){
+                jQuery(this).attr('checked',true);
+                jQuery(this).parent().addClass('checked');	//used for the custom checkbox style
+                jQuery(this).parents('tr').addClass('selected'); // to highlight row as selected
+                if(targetHold != undefined){
+                    if(targetHold.localName == 'textarea'){
+                   jQuery(targetHold).val( jQuery(targetHold).val() + jQuery(this).val() + "\n")
+               } }
+            });
+        } else {
+            //uncheck all rows in table
+            ch.each(function(){
+                jQuery(this).attr('checked',false);
+                jQuery(this).parent().removeClass('checked');	//used for the custom checkbox style
+               jQuery(this).parents('tr').removeClass('selected');
+                if(targetHold != undefined){
+                    if(targetHold.localName == 'textarea'){
+                    jQuery(targetHold).val( jQuery(targetHold).val().replace(jQuery(this).val() + "\n","")) ;
+               }}
+            });
+        }
+    }).on('change','tbody input[type=checkbox]',function(){
+         var parentTable = jQuery(this).parents('table');
+
+        var targetHold = jQuery(jQuery(parentTable).attr('data-targetcheck'))[0];
+            if(jQuery(this).is(":checked")){
+                  jQuery(this).parent().addClass('checked');	//used for the custom checkbox style
+                jQuery(this).parents('tr').addClass('selected'); // to highlight row as selected
+                if(targetHold != undefined){
+               if(targetHold.localName == 'textarea'){
+                   jQuery(targetHold).val( jQuery(targetHold).val() + jQuery(this).val() + "\n")
+               }     }
+            }else{
+               jQuery(this).parent().removeClass('checked');	//used for the custom checkbox style
+                jQuery(this).parents('tr').removeClass('selected');
+                if(targetHold != undefined){ if(targetHold.localName == 'textarea'){
+                    jQuery(targetHold).val( jQuery(targetHold).val().replace(jQuery(this).val() + "\n","")) ;
+               }}
+            }
+        }).on('click',".remove-remote-qry",function(e){
+        e.preventDefault();
+        var targetUrl = jQuery(this).attr('target-link');
+        var reloaddata = jQuery(this).attr('data-reload');
+        var tdiv = jQuery(this).attr("data-targetdiv");
+
+        if(!targetUrl){
+            targetUrl = jQuery(this).attr('href')
+        }
+
+        var sourceCont = jQuery(this).attr('target-cont');
+        if(!sourceCont){
+            sourceCont = jQuery(this).parents('table')
+        }
+
+        var targetRow = jQuery(this).attr('row-id');
+        if(!targetRow){
+            targetRow = jQuery(this).parents('tr')
+        }
+        var targetTitle = jQuery(targetRow).find(" .item-title ");
+        var title = targetTitle[0].textContent;
+        if(targetTitle == undefined){
+            title = jQuery(targetRow).children('.item-title').text();
+            if(title == undefined){
+                title = jQuery(this).attr('title');
+            }
+        }
+
+        // confirm box
+        var proceed_delete = false;
+                jConfirm('Are you Sure you Want to delete this: <span class="warning"> ' +  title + "</span>", 'Confirmation Dialog', function(r) {
+                    if(r == true){
+                        jQuery('body').modalmanager('loading');
+                        jQuery.post(targetUrl,{remove:true},function(rdata,status){
+                            if(status == 'success'){
+                                jQuery('body').modalmanager('removeLoading');
+                                if(rdata.status == true || rdata.error == false){
+                                    remove_element(sourceCont,targetRow,rdata.data);
+                                }else{
+                                    jQuery('body').modalmanager('removeLoading');
+                                    alert_warning('warning',"Failed to remove due :: " + rdata.data)
+                                }
+                            }else{
+                                jQuery('body').modalmanager('removeLoading');
+                                alert_warning('warning',"Network Timeout! Please Retry")
+                            }
+                            if(reloaddata != undefined){
+                                jQuery(tdiv).load(reloaddata);
+                            }
+                            window.form_callback();
+                        },'json').fail(function(){
+                         jQuery.alerts.dialogClass = 'alert-warning';
+                            jAlert('<span class="message"><i class="fa fa-warning></i>&nbsp;&nbsp;&nbsp;Failed to Get Appropriate Response from Server!! </span>', 'Alert Info', function(){
+                                //jQuery(modal).modal('hide')
+                                jQuery.alerts.dialogClass = null; // reset to default
+                            })});
+                    }else{
+                         proceed_delete = false;
+                    }
+                    //jAlert('Confirmed: ' + r, 'Confirmation Results');
+                });
+    }).on('click','.table-selection-control',function(e){
+            e.preventDefault();
+            var list = new Object();
+            var url = jQuery(this).attr('href');
+            var $stlist = "";
+        var table = jQuery(this).attr('data-target');
+
+            jQuery(table).find('.checklistitem:checked').each(function(i,e){
+                if(list['itemlist['+jQuery(e).attr('data-stream')+']'] == undefined){
+                    list['itemlist['+jQuery(e).attr('data-stream')+']'] = new Array();
+                }
+                $stlist += jQuery(this).parents('tr').find('td:eq(2)').html() + "; ";
+                list['itemlist['+jQuery(e).attr('data-stream')+']'].push(jQuery(this).val());
+            });
+            var title = jQuery(this).text();
+            if(jQuery(table).find('.checklistitem:checked').length > 0){
+                jConfirm('Are you Sure you Want To  <span class="badge">'+title+'</span>  Action to  ' +  $stlist + "</span>", title, function(r) {
+                    if(r == true) {
+                        jQuery(table).modalmanager('loading');
+                        jQuery.post(url,list,function(rdata){
+                            jQuery(table).modalmanager('removeLoading');
+
+                            if(rdata.error == true){
+                                jQuery.growl.error({title:"Error Information ",message:rdata.message});
+                            }else{
+                                jQuery(table).DataTable().ajax.reload();
+                                jQuery.growl.notice({title:"Notice Information ",message:rdata.message});
+                            }
+                        }).fail(function(){
+                            jQuery(table).modalmanager('removeLoading');
+                            jQuery.growl.error({title:"Invalid Response From Server!",message:"Received an invalid response from Server!"})
+                        })
+                    }
+                }) ;
+
+
+
+            }else{
+                jQuery.growl.warning({title:"No Student Selected",message:"Select atleast one student for the effect to apply"})
+            }
+            return false;
+
+    });
+
+
+
+    activate_action_buttons();
+    // Handle delete/remove data action.
+
+
+    // All inputs hands up when key is pressed clean all validation errors
+    jQuery('.modal').on('keyup',':input',function(){
+        if(jQuery(this).val() != ""){
+            jQuery(this).removeClass('inputError');
+            jQuery(this).siblings('.help-inline').remove();
+             jQuery(this).parents('label').siblings('.form-error').html('')
+        }
+    }).on('change',':input',function(){
+        if(jQuery(this).val() != "" || jQuery(this).val() != "--"){
+            jQuery(this).removeClass('inputError');
+            jQuery(this).siblings('.help-inline').remove();
+             jQuery(this).parents('label').siblings('.form-error').html('')
+        }
+    }).on('click','.add-data-action,.edit-data-action',function()
+    {
+        jQuery('#dualPicker select.target_list').find('option').each(function(){
+            if(jQuery(this).not(":selected")){
+               jQuery(this).attr('selected',true);
+            }
+        })
+        var tForm = jQuery(this).attr('target-form');
+        var tModal = jQuery(this).attr('target-modal');
+        var tEl = jQuery(this).attr('target-div')
+        var formExits = jQuery(tForm);
+        var reloaddata = jQuery(this).attr('data-reload');
+        var tdiv = jQuery(this).attr("data-targetdiv");
+        if(formExits.length > 0){
+            var notEmpty = validate_form(tForm);
+            if(notEmpty){
+                jQuery('body').modalmanager('loading');
+
+                var formData = jQuery(tForm).serialize();
+
+                formData = formData + "&ajaxrequest=true";
+                var action = jQuery(tForm).attr('action');
+                jQuery.post(
+                    action,
+                    formData,
+                    function(rdata,success,xhr){
+                        if(success=='success'){
+                            if(rdata.error == true){
+                                if(rdata.data != undefined){
+                                    populate_form_errors(tForm,rdata.data);
+                                    jQuery.growl.error({title:"Form Errors",message:rdata.message !=undefined?rdata.message:"Check form for Errors / Missing Inputs"})
+                                }else{
+                                    jQuery.growl.error({title:"Form Errors",message:rdata.message})
+                                }
+                            }else if(rdata.errors == true || rdata.error == true){
+                                jQuery.alerts.dialogClass = 'alert-danger';
+                                jAlert('<span class="message"><i class="fa icon-info-sign"></i>&nbsp;&nbsp;&nbsp;'+ rdata.message +'</span>', 'Warning Message!', function(){
+                                    //jQuery(modal).modal('hide')
+                                    jQuery.alerts.dialogClass = null; // reset to default
+                                });
+                            }else if(rdata.error == 'happened'){
+                                jQuery.growl.warning({title:"Information",message:rdata.message}) ;
+                            }else if(rdata.error == 'message'){
+                                jQuery.growl.notice({title:"Information",message:rdata.message}) ;
+                            }else{
+                                if(rdata.error == 'extras'){
+                                    jQuery.growl.warning({title:"Warning Messages",message:rdata.message});
+                                }
+                                handle_incoming_add(rdata.data,tEl,tModal,rdata.message);
+                            }
+
+                            window.form_callback();
+
+                            jQuery('body').modalmanager('removeLoading')
+                        }else{
+                            jQuery.alerts.dialogClass = 'alert-warning';
+                            jAlert('<span class="message"><i class="fa fa-info-circle"></i>&nbsp;&nbsp;&nbsp;Network Error/Network Timeout. Pls Retry </span>', 'Alert Info', function(){
+                                //jQuery(modal).modal('hide')
+                                jQuery.alerts.dialogClass = null; // reset to default
+                            }); }
+                       if(reloaddata != undefined){
+                           jQuery(tdiv).load(reloaddata);
+                       }
+                    },'json').fail(function(){
+                         jQuery.alerts.dialogClass = 'alert-warning';
+                            jAlert('<span class="message"><i class="fa fa-warning"></i>&nbsp;&nbsp;&nbsp;Failed to Get Appropriate Response from Server!! </span>', 'Alert Info', function(){
+                                //jQuery(modal).modal('hide')
+                                jQuery.alerts.dialogClass = null; // reset to default
+                            });
+                    });
+
+            }else{
+                jQuery('body').modalmanager('removeLoading');
+            }    }else{
+            jQuery('body').modalmanager('removeLoading');
+
+        }
+
+
+    }).on("click",'.remove-check-btn',function(e)
+    {
+        e.preventDefault();
+        var $table = jQuery(this).attr('data-table');
+        var $url = jQuery(this).attr('href');
+        var $checked = jQuery($table).find('input[type=checkbox]:checked').serialize();
+        var reloaddata = jQuery(this).attr('data-reload');
+        var tdiv = jQuery(this).attr("data-targetdiv");
+        if($checked.length > 0){
+            var sdata ='';
+
+            jConfirm('Are you Sure you Want to delete this: <span class="badge badge-danger">'+ jQuery($table).find('input[type=checkbox]:checked').length +' </span> Selected Items <em>After Deletion they will not Be recoverable!</em>', 'Confirmation Dialog', function(r) {
+                if(r == true){
+                    jQuery('body').modalmanager('loading');
+                    jQuery.post($url,$checked).done(function(rdata){
+                        if(rdata.error == true){
+                            jQuery('body').modalmanager('removeLoading');
+                            alert_warning('warning',rdata.message);
+                        }else{
+                            jQuery('table tbody').find('input[type=checkbox]:checked').parents('tr').remove();
+                            alert_warning('info',rdata.message);
+                            if(reloaddata != undefined){
+                                jQuery(tdiv).load(reloaddata);
+                            }
+                        }
+                        window.form_callback();
+                    }).fail(function(){
+                        jQuery('body').modalmanager('removeLoading');
+                        jQuery.growl.error({title:"Action Failed",message:"Action failed due to error code"})
+                    })
+                }else{
+                    proceed_delete = false;
+                }
+                //jAlert('Confirmed: ' + r, 'Confirmation Results');
+            });
+        }else{
+            jQuery.growl.error({title:"Action Failed",message:"Nothing Selected"})
+        }
+    });
+
+    loginChecker();
+});
+
+
+var resizeHandler = function(target) {
+    var me = jQuery(target);
+    var winheigh = jQuery(window).height() - 400;
+    if(winheigh < 400){
+        winheigh = 400;
+    }
+    me.css("height",winheigh+'px');
+    jQuery(".slimScrollDiv").css("height",winheigh+'px');
+    var height = Math.max((me.outerHeight() / me[0].scrollHeight)
+        * me.outerHeight(), 30);
+    jQuery(".slimScrollBar").css({ height: height + 'px' });
+}
+var processProgressReport = function(target,$tgid){
+    var $prgbar = '<div class="progress progress-striped active"><div id="process-progress-status" style="width: 1%;color:#222" class="bar">Compiling Data: 1%</div></div>';
+    jQuery(target).html($prgbar);
+    jQuery(target).append("<i class='fa fa-spin fa-spinner'></i>Geting data, Pls Wait ....!");
+    var pind = jQuery("#process-progress-status");
+    jQuery.ajaxSetup({
+        async:true
+    })
+        jQuery.post(getBaseUrl('ajax_load/process_progress/result_process'),{processid:$tgid,token:csrf_hash},function(rdata){
+            if(rdata.error == true && rdata.processid == $tgid ){
+                jQuery(pind).parents('.alert').removeClass('alert-info');
+                jQuery(pind).parents('.alert').addClass('alert-warning').html("<i class='fa fa-warning fa-fw'></i>Failed To Get Data. Retry!!");
+
+            }else{
+                jQuery(pind).css('width',rdata.status + "%");
+                jQuery(pind).html("Compiling Data: "+rdata.status + "%");
+                jQuery.ajaxSetup({
+                    async:true
+                });
+                if(rdata.status < 100 && rdata.total > 0){
+                    jQuery(pind).parents('.alert').append("<br><i class='fa fa-spin fa-spinner'></i> Compiled " + rdata.current + " of " + rdata.total + " Total Students , Reached " + rdata.status + "%")
+                    processProgressReport(target,$tgid);
+                }else{
+                    if(rdata.total >0){
+                    jQuery(pind).parents('.alert').append("<br>Compilation done!! <i class='fa fa-check'></i><br><i class='fa fa-spin fa-spinner'></i>Geting data, Pls Wait ....!")
+                }}
+            }
+
+        },'json').fail(function(){
+
+            jQuery(pind).parents('.alert').removeClass('alert-info');
+            jQuery(pind).parents('.alert').addClass('alert-warning').html("<i class='fa fa-warning fa-fw'></i>Received an Error Response from Server!!");
+        })
+
+
+}
+
